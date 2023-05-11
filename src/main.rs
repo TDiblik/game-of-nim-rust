@@ -43,32 +43,31 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+const NUMBER_OF_ROWS: u8 = 4;
 fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> io::Result<()> {
-    let mut game = Game::new(4);
+    let mut game = Game::new(NUMBER_OF_ROWS);
     loop {
         terminal.draw(|f| render(f, &game))?;
 
         if let Event::Key(key) = event::read()? {
             // Universal keys
             match key.code {
-                KeyCode::Char('q') => {
-                    return Ok(());
-                }
-                KeyCode::Char('r') | KeyCode::Char('R') => {
-                    return Ok(());
-                }
+                KeyCode::Char('q') | KeyCode::Char('Q') => return Ok(()),
+                KeyCode::Char('r') | KeyCode::Char('R') => game = Game::new(NUMBER_OF_ROWS),
                 _ => {}
             }
 
             // Game keys
-            // TODO:  && !game.is_finished
-            if key.kind == KeyEventKind::Press {
+            if key.kind == KeyEventKind::Press && !game.is_finished {
                 match key.code {
                     KeyCode::Up => game.make_move(PossibleMoves::Up),
                     KeyCode::Down => game.make_move(PossibleMoves::Down),
                     KeyCode::Left => game.make_move(PossibleMoves::Left),
                     KeyCode::Right => game.make_move(PossibleMoves::Right),
-                    KeyCode::Enter => game.make_move(PossibleMoves::Select),
+                    KeyCode::Enter => {
+                        game.make_move(PossibleMoves::Select);
+                        game.check_win_conditions();
+                    }
                     KeyCode::Char('p') | KeyCode::Char('P') => game.next_player(),
                     _ => (),
                 }
@@ -181,4 +180,55 @@ fn render<B: Backend>(f: &mut Frame<B>, game: &Game) {
         Style::default().add_modifier(Modifier::BOLD),
     ));
     f.render_widget(player_2_matches, game_state_container[5]);
+
+    // Win popup
+    if game.is_finished {
+        let popup_block = Block::default()
+            .title(format!(
+                "{} wins!",
+                match game.current_player {
+                    PossiblePlayers::Player1 => "Player 1",
+                    PossiblePlayers::Player2 => "Player 2",
+                }
+            ))
+            .borders(Borders::ALL);
+        let popup_area = centered_rect(60, 20, f_size);
+        f.render_widget(Clear, popup_area);
+        f.render_widget(popup_block, popup_area);
+
+        let popup_text = Paragraph::new(Span::styled(
+            "Press Q to quit or R to restart.",
+            Style::default().add_modifier(Modifier::BOLD),
+        ))
+        .alignment(Alignment::Center);
+        let popup_text_area = centered_rect(90, 20, popup_area);
+
+        f.render_widget(popup_text, popup_text_area);
+    }
+}
+
+fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+    let center_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            [
+                Constraint::Percentage((100 - percent_y) / 2),
+                Constraint::Percentage(percent_y),
+                Constraint::Percentage((100 - percent_y) / 2),
+            ]
+            .as_ref(),
+        )
+        .split(r);
+
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(
+            [
+                Constraint::Percentage((100 - percent_x) / 2),
+                Constraint::Percentage(percent_x),
+                Constraint::Percentage((100 - percent_x) / 2),
+            ]
+            .as_ref(),
+        )
+        .split(center_layout[1])[1]
 }
