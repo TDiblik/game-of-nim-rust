@@ -1,8 +1,11 @@
+mod game;
+
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use game::Game;
 use ratatui::{
     backend::{Backend, CrosstermBackend},
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -41,8 +44,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> io::Result<()> {
+    let game = Game::new(4);
     loop {
-        terminal.draw(|f| render_entry_point(f))?;
+        terminal.draw(|f| render(f, &game))?;
 
         if let Event::Key(key) = event::read()? {
             // Universal keys
@@ -74,15 +78,15 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> io::Result<()> {
     }
 }
 
-fn render_entry_point<B: Backend>(f: &mut Frame<B>) {
+fn render<B: Backend>(f: &mut Frame<B>, game: &Game) {
     let f_size = f.size();
 
+    // Screen container
     let game_container_constraints = [
         Constraint::Percentage(2),
         Constraint::Percentage(98),
         Constraint::Percentage(2),
     ];
-
     let game_container_verticla_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints(game_container_constraints.as_ref())
@@ -94,8 +98,69 @@ fn render_entry_point<B: Backend>(f: &mut Frame<B>) {
     let game_border = Block::default().borders(Borders::ALL);
     f.render_widget(game_border, game_container_horizontal_chunks[1]);
 
+    // Game container
     let game_layout_container = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(75), Constraint::Percentage(15)])
         .split(game_container_horizontal_chunks[1]);
+
+    let matches_rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(game.matches_vertical_container_constraints.as_ref())
+        .split(game_layout_container[0]);
+    let remove_me = Block::default().borders(Borders::ALL);
+    f.render_widget(remove_me.clone(), matches_rows[1]);
+    f.render_widget(remove_me.clone(), matches_rows[2]);
+    f.render_widget(remove_me.clone(), matches_rows[3]);
+    f.render_widget(remove_me.clone(), matches_rows[4]);
+    for i in 0..game.matches_number_of_rows {
+        let current_row = &game.matches[i];
+        let mut horizontal_container_constrains: Vec<Constraint> =
+            Vec::with_capacity(current_row.len() + 2);
+
+        horizontal_container_constrains.push(Constraint::Percentage(5));
+        let constraint = 90 / game.matches_number_of_columns;
+        for _i in 0..game.matches_number_of_columns {
+            horizontal_container_constrains.push(Constraint::Percentage(constraint as u16));
+            horizontal_container_constrains.push(Constraint::Min(1));
+        }
+        horizontal_container_constrains.push(Constraint::Percentage(5));
+
+        let matches_columns = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(horizontal_container_constrains)
+            .split(matches_rows[i + 1]);
+        for j in 0..game.matches_number_of_columns {
+            let stick = Block::default().borders(Borders::ALL);
+            f.render_widget(stick, matches_columns[j + 1]);
+        }
+    }
+
+    // Stats container
+    let game_state_container = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Min(1),
+            Constraint::Min(1),
+            Constraint::Min(1),
+            Constraint::Min(1),
+            Constraint::Min(1),
+            Constraint::Min(1),
+        ])
+        .split(game_layout_container[1]);
+    let player_1_text = Paragraph::new(Span::styled("Player 1", Style::default()));
+    f.render_widget(player_1_text, game_state_container[1]);
+    let player_1_matches = Paragraph::new(Span::styled(
+        "|".repeat(game.player_1_number_of_matches),
+        Style::default().add_modifier(Modifier::BOLD),
+    ));
+    f.render_widget(player_1_matches, game_state_container[2]);
+
+    let player_2_text = Paragraph::new(Span::styled("Player 2", Style::default()));
+    f.render_widget(player_2_text, game_state_container[4]);
+    let player_2_matches = Paragraph::new(Span::styled(
+        "|".repeat(game.player_2_number_of_matches),
+        Style::default().add_modifier(Modifier::BOLD),
+    ));
+    f.render_widget(player_2_matches, game_state_container[5]);
 }
