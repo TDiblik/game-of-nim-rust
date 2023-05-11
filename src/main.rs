@@ -5,7 +5,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use game::Game;
+use game::{Game, PossibleMoves, PossiblePlayers};
 use ratatui::{
     backend::{Backend, CrosstermBackend},
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -44,7 +44,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> io::Result<()> {
-    let game = Game::new(4);
+    let mut game = Game::new(4);
     loop {
         terminal.draw(|f| render(f, &game))?;
 
@@ -61,19 +61,18 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> io::Result<()> {
             }
 
             // Game keys
-            /*
-                       if key.kind == KeyEventKind::Press && !game.is_finished {
-                           match key.code {
-                               KeyCode::Left => game.point_to_previous(),
-                               KeyCode::Right => game.point_to_next(),
-                               KeyCode::Enter => {
-                                   game.change_selection();
-                                   game.check_win_conditions();
-                               }
-                               _ => (),
-                           }
-                       }
-            */
+            // TODO:  && !game.is_finished
+            if key.kind == KeyEventKind::Press {
+                match key.code {
+                    KeyCode::Up => game.make_move(PossibleMoves::Up),
+                    KeyCode::Down => game.make_move(PossibleMoves::Down),
+                    KeyCode::Left => game.make_move(PossibleMoves::Left),
+                    KeyCode::Right => game.make_move(PossibleMoves::Right),
+                    KeyCode::Enter => game.make_move(PossibleMoves::Select),
+                    KeyCode::Char('p') | KeyCode::Char('P') => game.next_player(),
+                    _ => (),
+                }
+            }
         }
     }
 }
@@ -108,31 +107,44 @@ fn render<B: Backend>(f: &mut Frame<B>, game: &Game) {
         .direction(Direction::Vertical)
         .constraints(game.matches_vertical_container_constraints.as_ref())
         .split(game_layout_container[0]);
-    let remove_me = Block::default().borders(Borders::ALL);
-    f.render_widget(remove_me.clone(), matches_rows[1]);
-    f.render_widget(remove_me.clone(), matches_rows[2]);
-    f.render_widget(remove_me.clone(), matches_rows[3]);
-    f.render_widget(remove_me.clone(), matches_rows[4]);
     for i in 0..game.matches_number_of_rows {
         let current_row = &game.matches[i];
+        let row_len = current_row.len();
+        let number_of_spaces = row_len + 1;
         let mut horizontal_container_constrains: Vec<Constraint> =
-            Vec::with_capacity(current_row.len() + 2);
+            Vec::with_capacity(number_of_spaces + 2);
 
         horizontal_container_constrains.push(Constraint::Percentage(5));
-        let constraint = 90 / game.matches_number_of_columns;
-        for _i in 0..game.matches_number_of_columns {
+
+        let constraint = 90 / number_of_spaces;
+        for _i in 0..row_len {
             horizontal_container_constrains.push(Constraint::Percentage(constraint as u16));
-            horizontal_container_constrains.push(Constraint::Min(1));
+            horizontal_container_constrains.push(Constraint::Min(2));
         }
+        horizontal_container_constrains.push(Constraint::Percentage(constraint as u16));
+
         horizontal_container_constrains.push(Constraint::Percentage(5));
 
         let matches_columns = Layout::default()
             .direction(Direction::Horizontal)
             .constraints(horizontal_container_constrains)
             .split(matches_rows[i + 1]);
-        for j in 0..game.matches_number_of_columns {
-            let stick = Block::default().borders(Borders::ALL);
-            f.render_widget(stick, matches_columns[j + 1]);
+        for j in 0..row_len {
+            if !current_row[j] {
+                continue;
+            }
+
+            let mut stick = Block::default()
+                .borders(Borders::ALL)
+                .style(Style::default().fg(Color::White));
+            if game.pointing_to_match.row == i && game.pointing_to_match.column == j {
+                stick = stick.style(
+                    Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::BOLD),
+                );
+            }
+            f.render_widget(stick, matches_columns[j * 2 + 2]);
         }
     }
 
@@ -148,7 +160,10 @@ fn render<B: Backend>(f: &mut Frame<B>, game: &Game) {
             Constraint::Min(1),
         ])
         .split(game_layout_container[1]);
-    let player_1_text = Paragraph::new(Span::styled("Player 1", Style::default()));
+    let mut player_1_text = Paragraph::new(Span::styled("Player 1", Style::default()));
+    if game.current_player == PossiblePlayers::Player1 {
+        player_1_text = player_1_text.style(Style::default().bg(Color::Blue));
+    }
     f.render_widget(player_1_text, game_state_container[1]);
     let player_1_matches = Paragraph::new(Span::styled(
         "|".repeat(game.player_1_number_of_matches),
@@ -156,7 +171,10 @@ fn render<B: Backend>(f: &mut Frame<B>, game: &Game) {
     ));
     f.render_widget(player_1_matches, game_state_container[2]);
 
-    let player_2_text = Paragraph::new(Span::styled("Player 2", Style::default()));
+    let mut player_2_text = Paragraph::new(Span::styled("Player 2", Style::default()));
+    if game.current_player == PossiblePlayers::Player2 {
+        player_2_text = player_2_text.style(Style::default().bg(Color::Blue));
+    }
     f.render_widget(player_2_text, game_state_container[4]);
     let player_2_matches = Paragraph::new(Span::styled(
         "|".repeat(game.player_2_number_of_matches),
