@@ -157,6 +157,11 @@ fn render<B: Backend>(f: &mut Frame<B>, game: &Game) {
             Constraint::Min(1),
             Constraint::Min(1),
             Constraint::Min(1),
+            Constraint::Min(2),
+            Constraint::Min(1),
+            Constraint::Min(1),
+            Constraint::Min(1),
+            Constraint::Min(1),
         ])
         .split(game_layout_container[1]);
     let mut player_1_text = Paragraph::new(Span::styled("Player 1", Style::default()));
@@ -180,6 +185,35 @@ fn render<B: Backend>(f: &mut Frame<B>, game: &Game) {
         Style::default().add_modifier(Modifier::BOLD),
     ));
     f.render_widget(player_2_matches, game_state_container[5]);
+
+    // Helper menu
+    let movement_helper_text = Paragraph::new(Span::styled(
+        "U/D/L/R Arrow => move",
+        Style::default().add_modifier(Modifier::SLOW_BLINK),
+    ))
+    .alignment(Alignment::Left);
+    f.render_widget(movement_helper_text, game_state_container[7]);
+
+    let selection_helper_text = Paragraph::new(Span::styled(
+        "Enter => Select",
+        Style::default().add_modifier(Modifier::SLOW_BLINK),
+    ))
+    .alignment(Alignment::Left);
+    f.render_widget(selection_helper_text, game_state_container[8]);
+
+    let restart_helper_text = Paragraph::new(Span::styled(
+        "R => Restart",
+        Style::default().add_modifier(Modifier::SLOW_BLINK),
+    ))
+    .alignment(Alignment::Left);
+    f.render_widget(restart_helper_text, game_state_container[9]);
+
+    let quit_helper_text = Paragraph::new(Span::styled(
+        "Q => Quit",
+        Style::default().add_modifier(Modifier::SLOW_BLINK),
+    ))
+    .alignment(Alignment::Left);
+    f.render_widget(quit_helper_text, game_state_container[10]);
 
     // Win popup
     if game.is_finished {
